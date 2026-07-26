@@ -15,7 +15,7 @@
 #include "boe.h"
 
 typedef struct {
-	unsigned char l, r;
+	int l, r;
 } PAIR_T;
 
 typedef struct {
@@ -43,7 +43,7 @@ int main()
 	}
 
 	unsigned char *pTokensIn = NULL;
-	unsigned char *pTokensOut = NULL;
+	unsigned int *pTokensOut = NULL;
 
 	size_t uTokensLen = strlen(s);
 	for (size_t i = 0; i < uTokensLen; i++) {
@@ -84,7 +84,7 @@ int main()
 	while (uTokensIdx < uTokensLen - 1) {
 		PAIR_T tPair = { .l = pTokensIn[uTokensIdx], .r = pTokensIn[uTokensIdx + 1] };
 		if (memcmp(&tPair, &maxPair.key, sizeof(maxPair.key)) == 0) {
-			boe_array_add(pTokensOut, boe_array_len(pPairTable));
+			boe_array_add(pTokensOut, boe_array_len(pPairTable) - 1);
 			uTokensIdx += 2;
 		} else {
 			boe_array_add(pTokensOut, pTokensIn[uTokensIdx]);
@@ -98,7 +98,10 @@ int main()
 	size_t uTokensOutLen = boe_array_len(pTokensOut);
 	LOG_INFO("pTokensOut: ");
 	for (size_t i = 0; i < uTokensOutLen; i++) {
-		printf("%c", (unsigned char)pTokensOut[i]);
+		if (pTokensOut[i] < 256)
+			printf("%c", pTokensOut[i]);
+		else
+			printf("<%u>", pTokensOut[i]);
 	}
 	printf("\n");
 
