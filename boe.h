@@ -1,0 +1,132 @@
+#if defined(__linux__) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 199309L
+#endif
+
+#ifndef _BOE_H_
+#define _BOE_H_
+
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+
+/* --------------program timing-------------- */
+static double boe_get_timeval(void);
+static double _boe_timeval_begin;
+#define PROFILE_BEGIN()	 (_boe_timeval_begin = boe_get_timeval())
+#define PROFILE_END(...) printf("%s: %lf seconds\n", __VA_ARGS__, boe_get_timeval() - _boe_timeval_begin);
+
+
+/* --------------dynamic array-------------- */
+#ifndef BOE_MALLOC
+#define BOE_MALLOC(sz) malloc(sz)
+#endif
+#ifndef BOE_FREE
+#define BOE_FREE(p) free(p)
+#endif
+#ifndef BOE_REALLOC
+#define BOE_REALLOC(p, sz) realloc(p, sz)
+#endif
+
+typedef struct _BOE_HEADER {
+	size_t count;
+	size_t capacity;
+} _BOE_HEADER_T;
+
+#define BOE_INIT_CAPACITY 256
+
+#define boe_array_add(items, x)                                                                                           \
+	do {                                                                                                                  \
+		if ((items) == NULL) {                                                                                            \
+			_BOE_HEADER_T *header = BOE_MALLOC(BOE_INIT_CAPACITY * sizeof(*(items)) + sizeof(_BOE_HEADER_T));             \
+			if (header == NULL)                                                                                           \
+				break;                                                                                                    \
+			header->count = 0;                                                                                            \
+			header->capacity = BOE_INIT_CAPACITY;                                                                         \
+			(items) = (void *)(header + 1);                                                                               \
+		}                                                                                                                 \
+		_BOE_HEADER_T *header = (_BOE_HEADER_T *)(items) - 1;                                                             \
+		if (header->count >= header->capacity) {                                                                          \
+			header->capacity *= 2;                                                                                        \
+			_BOE_HEADER_T *new_header = BOE_REALLOC(header, sizeof(*(items)) * header->capacity + sizeof(_BOE_HEADER_T)); \
+			if (new_header == NULL)                                                                                       \
+				break;                                                                                                    \
+			header = new_header;                                                                                          \
+			(items) = (void *)(header + 1);                                                                               \
+		}                                                                                                                 \
+		(items)[header->count++] = (x);                                                                                   \
+	} while (0)
+
+#define boe_array_len(items)  ((items) == NULL ? 0 : ((_BOE_HEADER_T *)(items) - 1)->count)
+#define boe_array_free(items) BOE_FREE((_BOE_HEADER_T *)(items) - 1)
+
+
+/* --------------log print-------------- */
+#ifndef BOE_LOG_LEVEL
+#define BOE_LOG_LEVEL 3
+#endif /* BOE_LOG_LEVEL */
+
+#define BOE_LOG_LV_ERROR 0
+#define BOE_LOG_LV_WARN	 1
+#define BOE_LOG_LV_INFO	 2
+#define BOE_LOG_LV_DEBUG 3
+
+#if BOE_LOG_LEVEL >= BOE_LOG_LV_ERROR /* ── ERROR ── */
+#define LOG_ERROR(fmt, ...) fprintf(stderr, "[ERROR] line %d: " fmt "\n", __LINE__, ##__VA_ARGS__)
+#else
+#define LOG_ERROR(...) ((void)0)
+#endif
+
+#if BOE_LOG_LEVEL >= BOE_LOG_LV_WARN /* ── WARN ── */
+#define LOG_WARN(fmt, ...) printf("[WARN] " fmt "\n", ##__VA_ARGS__)
+#else
+#define LOG_WARN(...) ((void)0)
+#endif
+
+#if BOE_LOG_LEVEL >= BOE_LOG_LV_INFO /* ── INFO ── */
+#define LOG_INFO(fmt, ...) printf("[INFO] " fmt "\n", ##__VA_ARGS__)
+#else
+#define LOG_INFO(...) ((void)0)
+#endif
+
+#if BOE_LOG_LEVEL >= BOE_LOG_LV_DEBUG /* ── DEBUG ── */
+#define LOG_DEBUG(fmt, ...) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
+#else
+#define LOG_DEBUG(...) ((void)0)
+#endif
+
+#endif /* _BOE_H */
+
+
+/* =========================IMPLEMENTAION========================= */
+#ifdef BOE_IMPLEMENTATION
+
+#ifndef BOE_TIMER_OVERRIDE
+
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
+static double boe_get_timeval(void)
+{
+#if defined(_WIN32)
+	static LARGE_INTEGER freq = { 0 };
+	if (freq.QuadPart == 0)
+		QueryPerformanceFrequency(&freq);
+	LARGE_INTEGER count;
+	QueryPerformanceCounter(&count);
+	return (double)count.QuadPart / (double)freq.QuadPart;
+
+#elif defined(__linux__) || defined(__APPLE__) || defined(__unix__)
+	struct timespec ts = { 0 };
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+
+#else
+	return (double)clock() / (double)CLOCKS_PER_SEC;
+#endif
+}
+
+#endif /* BOE_TIMER_OVERRIDE */
+
+#endif /* BOE_IMPLEMENTATION */
