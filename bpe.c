@@ -86,63 +86,46 @@ int main()
 		boe_array_add(pair_table, max_pair.key);
 
 		size_t tokens_idx = 0;
-		while (tokens_idx < tokens_len - 1) {
-			Pair_t tPair = { .l = tokens_in[tokens_idx], .r = tokens_in[tokens_idx + 1] };
-			if (memcmp(&tPair, &max_pair.key, sizeof(max_pair.key)) == 0) {
-				boe_array_add(tokens_out, boe_array_len(pair_table) - 1);
-				tokens_idx += 2;
-			} else {
-				boe_array_add(tokens_out, tokens_in[tokens_idx]);
-				if (tokens_idx == tokens_len - 2) {
-					boe_array_add(tokens_out, tokens_in[tokens_idx + 1]);
+		while (tokens_idx < tokens_len) {
+			if (tokens_idx + 1 < tokens_len) {
+				Pair_t tPair = { .l = tokens_in[tokens_idx], .r = tokens_in[tokens_idx + 1] };
+				if (memcmp(&tPair, &max_pair.key, sizeof(Pair_t)) == 0) {
+					boe_array_add(tokens_out, boe_array_len(pair_table) - 1);
+					tokens_idx += 2;
+					continue;
 				}
-				tokens_idx++;
+				boe_array_add(tokens_out, tokens_in[tokens_idx]);
+				tokens_idx += 1;
 			}
+
+			// size_t tokens_out_len = boe_array_len(tokens_out);
+			// LOG_INFO("tokens_out: ");
+			// for (size_t i = 0; i < tokens_out_len; i++) {
+			// 	if (tokens_out[i] < 256)
+			// 		printf("%c", tokens_out[i]);
+			// 	else
+			// 		printf("<%u>", tokens_out[i]);
+			// }
+			// printf("\n");
+
+			KV_table_t *cur, *tmp;
+			HASH_ITER(hh, freq, cur, tmp)
+			{
+				HASH_DEL(freq, cur);
+				free(cur);
+			}
+
+			unsigned int *t = tokens_in;
+			tokens_in = tokens_out;
+			tokens_out = t;
+
+			boe_array_free(tokens_out);
+			tokens_out = NULL;
+			tokens_len = boe_array_len(tokens_in);
+			LOG_INFO("iter[%d] tokens_len: %zu", iter_cnt, tokens_len);
+			iter_cnt++;
 		}
-
-		// size_t tokens_out_len = boe_array_len(tokens_out);
-		// LOG_INFO("tokens_out: ");
-		// for (size_t i = 0; i < tokens_out_len; i++) {
-		// 	if (tokens_out[i] < 256)
-		// 		printf("%c", tokens_out[i]);
-		// 	else
-		// 		printf("<%u>", tokens_out[i]);
-		// }
-		// printf("\n");
-
-		KV_table_t *cur, *tmp;
-		HASH_ITER(hh, freq, cur, tmp)
-		{
-			HASH_DEL(freq, cur);
-			free(cur);
-		}
-
-		unsigned int *t = tokens_in;
-		tokens_in = tokens_out;
-		tokens_out = t;
-
-		boe_array_free(tokens_out);
-		tokens_out = NULL;
-		tokens_len = boe_array_len(tokens_in);
-		LOG_INFO("iter[%d] tokens_len: %zu", iter_cnt, tokens_len);
-		iter_cnt++;
 	}
-
-	/* 排序 */
-	// size_t count = HASH_COUNT(freq);
-	// KV_table_t **arr = malloc(count * sizeof(KV_table_t *));
-	// KV_table_t *cur;
-	// size_t i = 0;
-	// for (cur = freq; cur != NULL; cur = cur->hh.next) {
-	// 	arr[i++] = cur;
-	// }
-
-	// qsort(arr, count, sizeof(KV_table_t *), cmp_func);
-	// for (size_t i = 0; i < 10; i++) {
-	// 	printf("(%d,%d) => %zu\n", arr[i]->key.l, arr[i]->key.r, arr[i]->value);
-	// }
-
-	// free(arr);
 
 	return 0;
 }
