@@ -1,4 +1,4 @@
-#if defined(__linux__) && !defined(_POSIX_C_SOURCE)
+#if defined(__linux__) && !defined(_POSIX_C_SOURCE) && !defined(_GNU_SOURCE)
 #define _POSIX_C_SOURCE 199309L
 #endif
 
@@ -13,7 +13,7 @@
 static double boe_get_timeval(void);
 static double _boe_timeval_begin;
 #define PROFILE_BEGIN()	 (_boe_timeval_begin = boe_get_timeval())
-#define PROFILE_END(...) printf("%s: %lf seconds\n", __VA_ARGS__, boe_get_timeval() - _boe_timeval_begin);
+#define PROFILE_END(...) printf("%s: %lf ms\n", __VA_ARGS__, boe_get_timeval() - _boe_timeval_begin);
 
 
 /* --------------dynamic array-------------- */
@@ -27,37 +27,37 @@ static double _boe_timeval_begin;
 #define BOE_REALLOC(p, sz) realloc(p, sz)
 #endif
 
-typedef struct _BOE_HEADER {
+typedef struct {
 	size_t count;
 	size_t capacity;
-} _BOE_HEADER_T;
+} _boe_array_header;
 
 #define BOE_INIT_CAPACITY 256
 
-#define boe_array_add(items, x)                                                                                           \
-	do {                                                                                                                  \
-		if ((items) == NULL) {                                                                                            \
-			_BOE_HEADER_T *header = BOE_MALLOC(BOE_INIT_CAPACITY * sizeof(*(items)) + sizeof(_BOE_HEADER_T));             \
-			if (header == NULL)                                                                                           \
-				break;                                                                                                    \
-			header->count = 0;                                                                                            \
-			header->capacity = BOE_INIT_CAPACITY;                                                                         \
-			(items) = (void *)(header + 1);                                                                               \
-		}                                                                                                                 \
-		_BOE_HEADER_T *header = (_BOE_HEADER_T *)(items) - 1;                                                             \
-		if (header->count >= header->capacity) {                                                                          \
-			header->capacity *= 2;                                                                                        \
-			_BOE_HEADER_T *new_header = BOE_REALLOC(header, sizeof(*(items)) * header->capacity + sizeof(_BOE_HEADER_T)); \
-			if (new_header == NULL)                                                                                       \
-				break;                                                                                                    \
-			header = new_header;                                                                                          \
-			(items) = (void *)(header + 1);                                                                               \
-		}                                                                                                                 \
-		(items)[header->count++] = (x);                                                                                   \
+#define boe_array_add(items, x)                                                                                                   \
+	do {                                                                                                                          \
+		if ((items) == NULL) {                                                                                                    \
+			_boe_array_header *header = BOE_MALLOC(BOE_INIT_CAPACITY * sizeof(*(items)) + sizeof(_boe_array_header));             \
+			if (header == NULL)                                                                                                   \
+				break;                                                                                                            \
+			header->count = 0;                                                                                                    \
+			header->capacity = BOE_INIT_CAPACITY;                                                                                 \
+			(items) = (void *)(header + 1);                                                                                       \
+		}                                                                                                                         \
+		_boe_array_header *header = (_boe_array_header *)(items) - 1;                                                             \
+		if (header->count >= header->capacity) {                                                                                  \
+			header->capacity *= 2;                                                                                                \
+			_boe_array_header *new_header = BOE_REALLOC(header, sizeof(*(items)) * header->capacity + sizeof(_boe_array_header)); \
+			if (new_header == NULL)                                                                                               \
+				break;                                                                                                            \
+			header = new_header;                                                                                                  \
+			(items) = (void *)(header + 1);                                                                                       \
+		}                                                                                                                         \
+		(items)[header->count++] = (x);                                                                                           \
 	} while (0)
 
-#define boe_array_len(items)  ((items) == NULL ? 0 : ((_BOE_HEADER_T *)(items) - 1)->count)
-#define boe_array_free(items) BOE_FREE((_BOE_HEADER_T *)(items) - 1)
+#define boe_array_len(items)  ((items) == NULL ? 0 : ((_boe_array_header *)(items) - 1)->count)
+#define boe_array_free(items) BOE_FREE((_boe_array_header *)(items) - 1)
 
 
 /* --------------log print-------------- */
@@ -71,7 +71,7 @@ typedef struct _BOE_HEADER {
 #define BOE_LOG_LV_DEBUG 3
 
 #if BOE_LOG_LEVEL >= BOE_LOG_LV_ERROR /* ── ERROR ── */
-#define LOG_ERROR(fmt, ...) fprintf(stderr, "[ERROR] line %d: " fmt "\n", __LINE__, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) fprintf(stderr, "[ERROR] %s line %d: -->  " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 #else
 #define LOG_ERROR(...) ((void)0)
 #endif
@@ -115,15 +115,15 @@ static double boe_get_timeval(void)
 		QueryPerformanceFrequency(&freq);
 	LARGE_INTEGER count;
 	QueryPerformanceCounter(&count);
-	return (double)count.QuadPart / (double)freq.QuadPart;
+	return (double)count.QuadPart / (double)freq.QuadPart * 1e3;
 
 #elif defined(__linux__) || defined(__APPLE__) || defined(__unix__)
 	struct timespec ts = { 0 };
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+	return (double)ts.tv_sec * 1e3 + (double)ts.tv_nsec * 1e-6;
 
 #else
-	return (double)clock() / (double)CLOCKS_PER_SEC;
+	return (double)clock() / (double)CLOCKS_PER_SEC * 1e3;
 #endif
 }
 

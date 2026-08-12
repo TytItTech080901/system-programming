@@ -7,6 +7,7 @@
  * <uthash.h> need download to your pc
  */
 
+#define _POSIX_C_SOURCE 199309L /* must come before ANY libc header; exposes CLOCK_MONOTONIC */
 #define BOE_IMPLEMENTATION
 #include <stdio.h>
 #include <stdlib.h>
