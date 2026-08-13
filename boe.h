@@ -1,5 +1,5 @@
 #if defined(__linux__) && !defined(_POSIX_C_SOURCE) && !defined(_GNU_SOURCE)
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 199309L /* best-effort: only takes effect if boe.h is the first include; CLOCK_MONOTONIC */
 #endif
 
 #ifndef _BOE_H_
@@ -10,10 +10,37 @@
 #include <stdlib.h>
 
 /* --------------program timing-------------- */
-static double boe_get_timeval(void);
-static double _boe_timeval_begin;
-#define PROFILE_BEGIN()	 (_boe_timeval_begin = boe_get_timeval())
-#define PROFILE_END(...) printf("%s: %lf ms\n", __VA_ARGS__, boe_get_timeval() - _boe_timeval_begin);
+typedef double boe_timer_t;
+
+#ifndef BOE_TIMER_SOURCE
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+static inline double boe_get_timeval(void)
+{
+#if defined(_WIN32)
+	static LARGE_INTEGER freq = { 0 };
+	if (freq.QuadPart == 0)
+		QueryPerformanceFrequency(&freq);
+	LARGE_INTEGER count;
+	QueryPerformanceCounter(&count);
+	return (double)count.QuadPart / (double)freq.QuadPart * 1e3;
+
+#elif defined(__linux__) || defined(__APPLE__) || defined(__unix__)
+	struct timespec ts = { 0 };
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (double)ts.tv_sec * 1e3 + (double)ts.tv_nsec * 1e-6;
+
+#else
+	return (double)clock() / (double)CLOCKS_PER_SEC * 1e3;
+#endif
+}
+#define BOE_TIMER_SOURCE() boe_get_timeval()
+#endif /* BOE_TIMER_SOURCE */
+
+#define PROFILE_BEGIN(timer)	(*(timer) = BOE_TIMER_SOURCE())
+#define PROFILE_END(timer, ...) printf("%s: %lf ms\n", __VA_ARGS__, BOE_TIMER_SOURCE() - *(timer))
 
 
 /* --------------dynamic array-------------- */
@@ -32,7 +59,7 @@ typedef struct {
 	size_t capacity;
 } _boe_array_header;
 
-#define BOE_INIT_CAPACITY 256
+#define BOE_INIT_CAPACITY 64
 
 #define boe_array_add(items, x)                                                                                                   \
 	do {                                                                                                                          \
@@ -95,38 +122,3 @@ typedef struct {
 #endif
 
 #endif /* _BOE_H */
-
-
-/* =========================IMPLEMENTAION========================= */
-#ifdef BOE_IMPLEMENTATION
-
-#ifndef BOE_TIMER_OVERRIDE
-
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
-
-static double boe_get_timeval(void)
-{
-#if defined(_WIN32)
-	static LARGE_INTEGER freq = { 0 };
-	if (freq.QuadPart == 0)
-		QueryPerformanceFrequency(&freq);
-	LARGE_INTEGER count;
-	QueryPerformanceCounter(&count);
-	return (double)count.QuadPart / (double)freq.QuadPart * 1e3;
-
-#elif defined(__linux__) || defined(__APPLE__) || defined(__unix__)
-	struct timespec ts = { 0 };
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return (double)ts.tv_sec * 1e3 + (double)ts.tv_nsec * 1e-6;
-
-#else
-	return (double)clock() / (double)CLOCKS_PER_SEC * 1e3;
-#endif
-}
-
-#endif /* BOE_TIMER_OVERRIDE */
-
-#endif /* BOE_IMPLEMENTATION */
